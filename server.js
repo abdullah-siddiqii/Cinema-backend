@@ -29,6 +29,7 @@ app.post('/api/auth/logout', (req, res) => {
 
 
 // MongoDB
+
 mongoose.connect(process.env.MONGO_URL)
   .then(() => {
     console.log('✅ MongoDB connected');
