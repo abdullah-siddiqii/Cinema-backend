@@ -8,7 +8,12 @@ const studentSchema = new mongoose.Schema({
     unique:true
   },
   age: Number,
-  course: String
+  course: String,
+  image: {
+    type:String,
+    required:true,
+    unique:true
+  }
 });
 
 module.exports = mongoose.model('Student', studentSchema);

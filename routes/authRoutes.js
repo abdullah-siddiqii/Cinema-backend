@@ -15,7 +15,7 @@ router.post('/login', (req, res) => {
   const { email, password } = req.body;
 
   if (email !== user.email || !bcrypt.compareSync(password, user.password)) {
-    return res.status(401).json({ message: 'Invalid credentials' });
+    return res.status(401).json({ message: 'Incorrect User' });
   }
 
   const token = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1d' });
@@ -27,7 +27,7 @@ router.post('/login', (req, res) => {
     maxAge: 86400000 // 1 day
   });
 
-  res.json({ message: 'Login successful' });
+  res.json({ message: 'Login successful' });  
 });
 
 // Logout route
@@ -35,5 +35,19 @@ router.post('/logout', (req, res) => {
   res.clearCookie('token');
   res.json({ message: 'Logged out' });
 });
+// Check authentication status
+router.get('/check-auth', (req, res) => {
+  const token = req.cookies.token;
 
+  if (!token) {
+    return res.status(401).json({ authenticated: false });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return res.json({ authenticated: true, user: decoded });
+  } catch (err) {
+    return res.status(401).json({ authenticated: false });
+  }
+});
 module.exports = router;

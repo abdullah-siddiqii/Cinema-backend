@@ -1,17 +1,17 @@
 const jwt = require('jsonwebtoken');
 
-const authMiddleware = (req, res, next) => {
-  const token = req.cookies.token;
+module.exports = (req, res, next) => {
+  const token = req.cookies?.token;
 
-  if (!token) return res.status(401).json({ message: 'Unauthorized' });
+  if (!token) {
+    return res.status(401).json({ message: 'No token, authorization denied' });
+  }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // can be used later
+    req.user = decoded; // email etc.
     next();
   } catch (err) {
-    res.status(401).json({ message: 'Invalid token' });
+    res.status(401).json({ message: 'Token is not valid' });
   }
 };
-
-module.exports = authMiddleware;
