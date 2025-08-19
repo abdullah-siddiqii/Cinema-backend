@@ -14,11 +14,12 @@ const verifyToken = require('./middleware/authMiddleware');
 dotenv.config();
 const app = express();
 app.use(cors({
-    origin: 'http://localhost:3000',
-    credentials: true,
-
+  origin: [
+    "http://localhost:3000",
+    "https://student-entry-front.vercel.app"
+  ],
+  credentials: true,
 }));
-
 
 // Middleware
 app.use(express.json());

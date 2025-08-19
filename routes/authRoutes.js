@@ -4,13 +4,15 @@ const bcrypt = require('bcryptjs');
 
 const router = express.Router();
 
-// Hardcoded dummy user (you can use MongoDB for this too)
+// Hardcoded dummy user (replace with DB user later)
 const user = {
   email: 'siddiqiimabdullah@outlook.com',
   password: bcrypt.hashSync('a.bdullah3', 10)
 };
 
+// =============================
 // Login route
+// =============================
 router.post('/login', (req, res) => {
   const { email, password } = req.body;
 
@@ -22,20 +24,29 @@ router.post('/login', (req, res) => {
 
   res.cookie('token', token, {
     httpOnly: true,
-    secure: false, // Set to true in production (HTTPS)
-    sameSite: 'lax',
-    maxAge: 86400000 // 1 day
+    secure: process.env.NODE_ENV === 'production', // ✅ true in production
+    sameSite: 'none', // ✅ required for cross-site cookies
+    maxAge: 24 * 60 * 60 * 1000 // 1 day
   });
 
-  res.json({ message: 'Login successful' });  
+  return res.json({ message: 'Login successful' });
 });
 
+// =============================
 // Logout route
+// =============================
 router.post('/logout', (req, res) => {
-  res.clearCookie('token');
-  res.json({ message: 'Logged out' });
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none'
+  });
+  return res.json({ message: 'Logged out' });
 });
+
+// =============================
 // Check authentication status
+// =============================
 router.get('/check-auth', (req, res) => {
   const token = req.cookies.token;
 
@@ -50,4 +61,5 @@ router.get('/check-auth', (req, res) => {
     return res.status(401).json({ authenticated: false });
   }
 });
+
 module.exports = router;
