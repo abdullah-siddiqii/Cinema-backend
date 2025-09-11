@@ -1,18 +1,25 @@
+// server.js (or app.js)
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const cookieParser = require('cookie-parser'); // optional, hum Bearer use kar rahe
+const cookieParser = require('cookie-parser');
 const path = require('path');
+const bcrypt = require('bcryptjs');
 
-dotenv.config();
-const app = express();
+// Models
+const User = require('./models/UserModal');
 
 // Routes
 const movieRoutes = require('./routes/movieRoutes');
 const authRoutes = require('./routes/authRoutes');
 const showtimesRoutes = require('./routes/showtimesRoutes');
+const roomRoutes = require('./routes/roomRoutes');
 
+dotenv.config();
+const app = express();
+
+// Middleware
 app.use(cors({
   origin: [
     "http://localhost:3000",
@@ -21,22 +28,22 @@ app.use(cors({
     "https://cinema-project-z9gt.vercel.app",
     "https://abdullah-test.whitescastle.com"
   ],
-  credentials: true, // Bearer ke liye cookies ki zarurat nahi
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
 }));
 
 app.use(express.json());
-app.use(cookieParser()); // rehne do, par hum use nahi kar rahe
+app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Mount routes
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/movies', movieRoutes);
 app.use('/api/showtimes', showtimesRoutes);
-app.use('/api/rooms', require('./routes/roomRoutes'));
+app.use('/api/rooms', roomRoutes);
 
-// (Optional) Default admin create
-const bcrypt = require('bcryptjs');
-const User = require('./models/UserModal');
+// Default Admin Creator (run once on startup)
 async function createDefaultAdmin() {
   try {
     const adminEmail = "siddiqiimabdullah@outlook.com";
@@ -55,18 +62,18 @@ async function createDefaultAdmin() {
     } else {
       console.log("ℹ️ Admin already exists:", existing.email);
     }
-  } catch (e) {
-    console.error("Error creating default admin:", e);
+  } catch (err) {
+    console.error("❌ Error creating default admin:", err.message);
   }
 }
 createDefaultAdmin();
 
-// DB + Start
+// DB + Server Start
 mongoose.connect(process.env.MONGO_URL)
   .then(() => {
     console.log('✅ MongoDB connected');
-    app.listen(process.env.PORT, () => {
-      console.log(`🚀 Server running on port ${process.env.PORT}`);
+    app.listen(process.env.PORT || 5000, () => {
+      console.log(`🚀 Server running on port ${process.env.PORT || 5000}`);
     });
   })
-  .catch(err => console.error('❌ MongoDB connection error:', err));
+  .catch(err => console.error('❌ MongoDB connection error:', err.message));
