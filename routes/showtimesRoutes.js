@@ -1,9 +1,13 @@
 const express = require("express");
 const Showtime = require("../models/ShowTimesModal.js");
+const Booking = require("../models/BookingModal.js");
+
 
 const router = express.Router();
 
-// ✅ Create a new showtime
+/**
+ * ✅ Create a new showtime
+ */
 router.post("/", async (req, res) => {
   try {
     const { movie, room, date, times } = req.body;
@@ -21,26 +25,46 @@ router.post("/", async (req, res) => {
   }
 });
 
+/**
+ * ✅ Get booked seats for a specific showtime
+ */
+router.get("/:id/booked-seats", async (req, res) => {
+  try {
+    const showtimeId = req.params.id;
 
-// ✅ Get all showtimes (with movie & room populated)
+    // find all bookings for this showtime
+    const bookings = await Booking.find({ showtimeId});
+
+    res.json({ bookings });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+/**
+ * ✅ Get all showtimes (populate movie & room)
+ */
 router.get("/", async (req, res) => {
   try {
     const showtimes = await Showtime.find()
-      .populate("movie", "Title Year Poster") // Only fetch needed fields
-      .populate("room", "name seatingCapacity location");
+      .populate("movie", "title year poster") // only required fields
+      .populate("room", "name seatingCapacity location seats"); // only required fields
+
     res.json(showtimes);
   } catch (err) {
-      console.error("Error fetching showtimes:", err); 
+    console.error("Error fetching showtimes:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ✅ Get a single showtime by ID
+/**
+ * ✅ Get a single showtime by ID
+ */
 router.get("/:id", async (req, res) => {
   try {
     const showtime = await Showtime.findById(req.params.id)
-      .populate("movie", "Title Year Poster")
-      .populate("room", "name seatingCapacity location");
+      .populate("movie", "title year poster")
+      .populate("room", "name seatingCapacity location seats");
 
     if (!showtime) {
       return res.status(404).json({ error: "Showtime not found" });
@@ -52,15 +76,17 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// ✅ Update a showtime
+/**
+ * ✅ Update a showtime
+ */
 router.put("/:id", async (req, res) => {
   try {
     const updatedShowtime = await Showtime.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true }
+      { new: true } // return updated doc
     )
-      .populate("movie", "Title Year Poster")
+      .populate("movie", "title year poster")
       .populate("room", "name seatingCapacity location");
 
     if (!updatedShowtime) {
@@ -73,7 +99,9 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// ✅ Delete a showtime
+/**
+ * ✅ Delete a showtime
+ */
 router.delete("/:id", async (req, res) => {
   try {
     const deleted = await Showtime.findByIdAndDelete(req.params.id);
