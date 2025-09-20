@@ -1,12 +1,12 @@
 const mongoose = require("mongoose");
 
-// ✅ Seat schema define karo
+// ✅ Seat schema
 const seatSchema = new mongoose.Schema({
   seatNumber: { type: String, required: true }, // e.g. "A1", "B5"
   row: { type: Number, required: true },
   column: { type: Number, required: true },
   isBooked: { type: Boolean, default: false },
-  bookedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Booking", default: null } 
+  bookedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Booking", default: null }
 });
 
 // ✅ Showtime schema
@@ -26,11 +26,15 @@ const showtimeSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
-    times: {
-      type: [String], // multiple showtimes
+    time: {
+      type: String, // ek hi time
       required: true,
     },
-    seats: [seatSchema], // ✅ nested seats
+    ticketPrices: {
+      VIP: { type: Number, required: true, default: 700 },
+      Normal: { type: Number, required: true, default: 400 },
+    },
+    seats: [seatSchema], // 👈 array of seatSchema
   },
   { timestamps: true }
 );

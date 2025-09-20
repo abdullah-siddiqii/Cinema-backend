@@ -13,10 +13,27 @@ router.post("/", async (req, res) => {
   session.startTransaction();
 
   try {
-    const { showtimeId, roomId, seat, customerName, customerPhone, ticketPrice } = req.body;
+    const { 
+      showtimeId, 
+      roomId, 
+      seat, 
+      customerName, 
+      customerPhone, 
+      ticketPrice, 
+      discountPrice, 
+      discountReference, 
+      paymentMethod, 
+      transactionId,
+      bankName // 👈 new field
+    } = req.body;
 
     if (!showtimeId || !roomId || !seat?.length || !customerName || !customerPhone || !ticketPrice) {
       throw new Error("All fields including ticketPrice are required");
+    }
+
+    // ✅ If payment method is Bank, bankName must be provided
+    if (paymentMethod === "Bank" && !bankName) {
+      throw new Error("Bank name is required when payment method is Bank");
     }
 
     // 1️⃣ Find showtime & room
@@ -28,59 +45,63 @@ router.post("/", async (req, res) => {
 
     // 2️⃣ Check existing bookings for this showtime
     const existingBookings = await Booking.find({ showtimeId }).session(session);
-    console.log(existingBookings, 'booking skjsdlfk');
 
     // 3️⃣ Find selected seats in room
     const selectedSeats = room.seats.filter((s) => seat.includes(s.seatNumber));
 
     // 4️⃣ Check if already booked
     const alreadyBooked = selectedSeats.filter((s) =>
-      // existingBookings.some((b) => b.seats.map(id => id.toString()).includes(s._id.toString()))
       existingBookings.some((b) => b.seat.includes(s._id.toString()))
     );
 
-if (alreadyBooked.length > 0) {
-  throw new Error(`Already booked: ${alreadyBooked.map((s) => s.seatNumber).join(", ")}`);
-}
+    if (alreadyBooked.length > 0) {
+      throw new Error(`Already booked: ${alreadyBooked.map((s) => s.seatNumber).join(", ")}`);
+    }
 
-// 5️⃣ Create bookings one by one inside transaction
-const bookings = [];
-for (let seat of selectedSeats) {
-  const booking = new Booking({
-    showtimeId,
-    roomId,
-    seat: seat._id, // ek booking = ek seat
-    customerName,
-    customerPhone,
-    ticketPrice,
-    totalPrice: ticketPrice,
-  });
+    // 5️⃣ Create bookings one by one inside transaction
+    const bookings = [];
+    for (let seat of selectedSeats) {
+      const booking = new Booking({
+        showtimeId,
+        roomId,
+        seat: seat._id, // ek booking = ek seat
+        customerName,
+        customerPhone,
+        ticketPrice,
+        discountPrice: discountPrice || 0,
+        discountReference: discountReference || null,
+        paymentMethod: paymentMethod || "Cash",
+        transactionId: transactionId || null,
+        bankName: paymentMethod === "Bank" ? bankName : null, // ✅ save bank name only if Bank
+        totalPrice: ticketPrice - (discountPrice || 0),
+      });
 
-  await booking.save({ session });
+      await booking.save({ session });
 
-  // mark seat as booked
-  seat.bookingId = booking._id;
-  bookings.push(booking);
-}
+      // mark seat as booked
+      seat.bookingId = booking._id;
+      bookings.push(booking);
+    }
 
-await room.save({ session });
+    await room.save({ session });
 
-// 6️⃣ Commit transaction
-await session.commitTransaction();
-session.endSession();
+    // 6️⃣ Commit transaction
+    await session.commitTransaction();
+    session.endSession();
 
-res.status(201).json({
-  message: "Bookings created successfully",
-  bookingIds: bookings.map((b) => b._id),
-  totalPrice: bookings.length * ticketPrice,
-});
+    res.status(201).json({
+      message: "Bookings created successfully",
+      bookingIds: bookings.map((b) => b._id),
+      totalPrice: bookings.length * ticketPrice,
+    });
   } catch (error) {
-  await session.abortTransaction();
-  session.endSession();
-  console.error("Booking Error:", error);
-  res.status(400).json({ message: error.message });
-}
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Booking Error:", error);
+    res.status(400).json({ message: error.message });
+  }
 });
+
 
 // ======================= UPDATE Booking (with Transaction) =======================
 router.put("/:id", async (req, res) => {

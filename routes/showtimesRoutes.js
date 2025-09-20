@@ -2,21 +2,26 @@ const express = require("express");
 const Showtime = require("../models/ShowTimesModal.js");
 const Booking = require("../models/BookingModal.js");
 
-
 const router = express.Router();
 
 /**
- * ✅ Create a new showtime
+ * ✅ Create a new showtime (single time with uniqueness check)
  */
 router.post("/", async (req, res) => {
   try {
-    const { movie, room, date, times } = req.body;
+    const { movie, room, date, time, ticketPrices } = req.body;
 
-    if (!movie || !room || !date || !times || !Array.isArray(times)) {
+    if (!movie || !room || !date || !time || !ticketPrices) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    const showtime = new Showtime({ movie, room, date, times });
+    // 🔍 check if this exact showtime already exists
+    const exists = await Showtime.findOne({ movie, room, date, time });
+    if (exists) {
+      return res.status(400).json({ message: "This showtime already exists" });
+    }
+
+    const showtime = new Showtime({ movie, room, date, time, ticketPrices });
     await showtime.save();
 
     res.status(201).json(showtime);
@@ -32,9 +37,7 @@ router.get("/:id/booked-seats", async (req, res) => {
   try {
     const showtimeId = req.params.id;
 
-    // find all bookings for this showtime
-    const bookings = await Booking.find({ showtimeId});
-
+    const bookings = await Booking.find({ showtimeId });
     res.json({ bookings });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -47,8 +50,8 @@ router.get("/:id/booked-seats", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const showtimes = await Showtime.find()
-      .populate("movie", "title year poster") // only required fields
-      .populate("room", "name seatingCapacity location seats"); // only required fields
+      .populate("movie", "title year poster")
+      .populate("room", "name seatingCapacity location seats");
 
     res.json(showtimes);
   } catch (err) {
@@ -84,7 +87,7 @@ router.put("/:id", async (req, res) => {
     const updatedShowtime = await Showtime.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true } // return updated doc
+      { new: true }
     )
       .populate("movie", "title year poster")
       .populate("room", "name seatingCapacity location");
