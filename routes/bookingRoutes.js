@@ -2,7 +2,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const router = express.Router();
-
+const authMiddleware = require("../middleware/isAdminMiddleware");
 const Booking = require("../models/BookingModal");
 const Room = require("../models/RoomModal");
 const Showtime = require("../models/ShowTimesModal");
@@ -44,7 +44,7 @@ router.post("/", async (req, res) => {
     if (!room) throw new Error("Room not found");
 
     // 2️⃣ Check existing bookings for this showtime
-    const existingBookings = await Booking.find({ showtimeId }).session(session);
+    const existingBookings = await Booking.find({ showtimeId , isCancelled: false }).session(session);
 
     // 3️⃣ Find selected seats in room
     const selectedSeats = room.seats.filter((s) => seat.includes(s.seatNumber));
@@ -154,41 +154,45 @@ router.put("/:id", async (req, res) => {
   }
 });/// not use
 
-// ======================= CANCEL Booking (with Transaction) =======================
-router.delete("/cancel/:bookingId", async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
+// ======================= CANCEL Booking (soft cancel) =======================
+// Cancel booking
+// routes/bookings.js
+router.put("/cancel/:id", async (req, res) => {
   try {
-    const { bookingId } = req.params;
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-    const booking = await Booking.findById(bookingId).session(session);
-    if (!booking) throw new Error("Booking not found");
+    if (booking.isCancelled) {
+      return res.status(400).json({ message: "Booking already cancelled" });
+    }
 
-    const room = await Room.findById(booking.roomId).session(session);
+    // ✅ Cancelled by role, not from body
+    const cancelledBy = req.user?.role || "Unknown"; 
 
+    booking.isCancelled = true;
+    booking.cancelledAt = new Date();
+   booking.cancelledBy = req.body.cancelledBy || 'Unknown';
+
+
+    // ✅ Free the seat in room
+    const room = await Room.findById(booking.roomId);
     if (room) {
       room.seats.forEach((s) => {
-        // if (booking.seats.map(id => id.toString()).includes(s._id.toString())) {
-        if (booking.seat.includes(s._id.toString())) {
+        if (s._id.toString() === booking.seat.toString()) {
           s.bookingId = null;
         }
       });
-      await room.save({ session });
+      await room.save();
     }
 
-    await booking.deleteOne({ session });
+    await booking.save();
 
-    await session.commitTransaction();
-    session.endSession();
-
-    res.status(200).json({ message: "Booking cancelled successfully", seat: booking.seat });
-  } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error("Cancel Error:", err);
-    res.status(400).json({ message: err.message });
+    res.json({ message: "Booking cancelled successfully", booking });
+  } catch (error) {
+    res.status(500).json({ message: "Error cancelling booking", error });
   }
 });
+
+
 
 module.exports = router;

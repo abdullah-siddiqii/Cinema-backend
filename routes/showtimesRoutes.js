@@ -37,13 +37,17 @@ router.get("/:id/booked-seats", async (req, res) => {
   try {
     const showtimeId = req.params.id;
 
-    const bookings = await Booking.find({ showtimeId });
+    // 🔥 Sirf wo bookings lao jo cancel nahi hui
+    const bookings = await Booking.find({
+      showtimeId,
+      isCancelled: false, // ✅ cancelled bookings ignore karo
+    });
+
     res.json({ bookings });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
-
 /**
  * ✅ Get all showtimes (populate movie & room)
  */

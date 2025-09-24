@@ -16,7 +16,7 @@ const authRoutes = require('./routes/authRoutes');
 const showtimesRoutes = require('./routes/showtimesRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const bookingRoutes = require("./routes/bookingRoutes");
-
+const dashboardRoutes = require("./routes/dashboard");
 dotenv.config();
 const app = express();
 
@@ -28,7 +28,7 @@ app.use(cors({
     "http://localhost:5173",
     "https://cinema-project-z9gt.vercel.app",
     "https://abdullah-test.whitescastle.com",
-    " http://192.168.110.187:3001"
+    "http://192.168.110.187:3001"
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -45,6 +45,7 @@ app.use('/api/movies', movieRoutes);
 app.use('/api/showtimes', showtimesRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/dash", dashboardRoutes);
 
 // Default Admin Creator (run once on startup)
 async function createDefaultAdmin() {
