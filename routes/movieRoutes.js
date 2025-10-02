@@ -83,22 +83,30 @@ router.get('/:id', async (req, res) => {
 // ====================
 router.put('/:id', upload.single('poster'), async (req, res) => {
   try {
-    let posterPath = null;
+    let posterPath;
 
+    // Agar nayi file upload hui
     if (req.file) {
       posterPath = `/uploads/${req.file.filename}`;
-    } else if (req.body.poster) {
-      posterPath = req.body.poster;
+    }
+    // Agar explicitly delete karna hai (frontend se empty string bheja gaya)
+    else if (req.body.poster === '') {
+      posterPath = ''; // clear poster
+    }
+
+    const updateData = {
+      title: req.body.title,
+      year: req.body.year,
+      plot: req.body.plot,
+    };
+
+    if (posterPath !== undefined) {
+      updateData.poster = posterPath;
     }
 
     const updatedMovie = await Movie.findByIdAndUpdate(
       req.params.id,
-      {
-        title: req.body.title,
-        year: req.body.year,
-        plot: req.body.plot,
-        ...(posterPath && { poster: posterPath }),
-      },
+      updateData,
       { new: true, runValidators: true }
     );
 
@@ -112,6 +120,7 @@ router.put('/:id', upload.single('poster'), async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+
 
 // ====================
 // Delete Movie + Image

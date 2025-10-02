@@ -9,43 +9,47 @@ const Room = require("../models/RoomModal");
 // =================== Admin Stats API ===================
 router.get("/stats", async (req, res) => {
   try {
-    // 1️⃣ Total bookings
+    const now = new Date();
+
+    // -------- 1️⃣ Total Bookings --------
     const totalBookings = await Booking.countDocuments();
 
-    // 2️⃣ Total revenue
+    // -------- 1a️⃣ Total Bookings Today --------
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const totalBookingsToday = await Booking.countDocuments({
+      createdAt: { $gte: startOfToday },
+    });
+
+    // -------- 2️⃣ Total Revenue --------
     const bookings = await Booking.find();
-    const totalRevenue = bookings.reduce(
-      (sum, b) => sum + (b.totalPrice || 0),
-      0
+    const totalRevenue = Math.round(
+      bookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0)
     );
 
-    // 3️⃣ Active movies (future showtimes)
-    const today = new Date();
+    // -------- 3️⃣ Active Movies --------
     const activeMoviesAgg = await Showtime.aggregate([
-      { $match: { date: { $gte: today } } },
       { $group: { _id: "$movie" } },
       { $count: "count" },
     ]);
     const activeMovies = activeMoviesAgg[0]?.count || 0;
 
-    // 4️⃣ Bookings over time
+    // -------- 4️⃣ Bookings Over Time --------
     const bookingsOverTimeAgg = await Booking.aggregate([
       {
         $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
-          },
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
           bookings: { $sum: 1 },
         },
       },
       { $sort: { _id: 1 } },
     ]);
-    const bookingsOverTime = bookingsOverTimeAgg.map((b) => ({
+    const bookingsOverTime = bookingsOverTimeAgg.map(b => ({
       date: b._id,
       bookings: b.bookings,
     }));
 
-    // 5️⃣ Revenue by movie
+    // -------- 5️⃣ Revenue By Movie --------
     const revenueByMovieAgg = await Booking.aggregate([
       {
         $lookup: {
@@ -73,12 +77,12 @@ router.get("/stats", async (req, res) => {
       },
       { $sort: { revenue: -1 } },
     ]);
-    const revenueByMovie = revenueByMovieAgg.map((r) => ({
+    const revenueByMovie = revenueByMovieAgg.map(r => ({
       movie: r._id,
       revenue: r.revenue,
     }));
 
-    // 6️⃣ Top Customers (by total spent)
+    // -------- 6️⃣ Top Customers --------
     const topCustomersAgg = await Booking.aggregate([
       {
         $group: {
@@ -88,46 +92,84 @@ router.get("/stats", async (req, res) => {
         },
       },
       { $sort: { totalSpent: -1 } },
-      { $limit: 5 },
+      { $limit: 10 },
     ]);
-    const topCustomers = topCustomersAgg.map((c) => ({
+    const topCustomers = topCustomersAgg.map(c => ({
       customer: c._id || "Unknown",
       totalSpent: c.totalSpent,
       bookings: c.bookings,
     }));
 
-    // 7️⃣ Latest bookings (last 5)
-    const latestBookingsRaw = await Booking.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .populate({
-        path: "showtimeId",
-        populate: {
-          path: "movie",
-          select: "title",
-        },
-      });
+    // -------- 7️⃣ Cinema Progress --------
+ // Get total bookings per movie
+const cinemaProgressAgg = await Booking.aggregate([
+  {
+    $lookup: {
+      from: "showtimes",
+      localField: "showtimeId",
+      foreignField: "_id",
+      as: "showtime",
+    },
+  },
+  { $unwind: "$showtime" },
 
-    const latestBookings = latestBookingsRaw.map((b) => ({
-      customer: b.customerName || "Unknown",
-      movie: b.showtimeId?.movie?.title || "Unknown",
-      seats: Array.isArray(b.seats)
-        ? b.seats.length
-        : b.seat
-        ? 1
-        : 0,
-      date: b.createdAt ? b.createdAt.toISOString().split("T")[0] : "N/A",
-    }));
+  {
+    $lookup: {
+      from: "movies",
+      localField: "showtime.movie",
+      foreignField: "_id",
+      as: "movie",
+    },
+  },
+  { $unwind: "$movie" },
 
-    // ✅ Send all stats
+  // Group by movie
+  {
+    $group: {
+      _id: "$movie.title",
+      bookedSeats: { $sum: 1 }, // total bookings
+    },
+  },
+
+  // Determine max bookings
+  {
+    $group: {
+      _id: null,
+      movies: { $push: { movie: "$_id", bookedSeats: "$bookedSeats" } },
+      maxBooked: { $max: "$bookedSeats" },
+    },
+  },
+
+  { $unwind: "$movies" },
+
+  {
+    $project: {
+      _id: 0,
+      movie: "$movies.movie",
+      bookedSeats: "$movies.bookedSeats",
+      progress: {
+        $cond: [
+          { $eq: ["$maxBooked", 0] },
+          0,
+          { $multiply: [{ $divide: ["$movies.bookedSeats", "$maxBooked"] }, 100] },
+        ],
+      },
+    },
+  },
+
+  { $sort: { progress: -1 } },
+]);
+
+
     res.json({
       totalBookings,
+      totalBookingsToday,
       totalRevenue,
       activeMovies,
       bookingsOverTime,
       revenueByMovie,
-      topCustomers, // 👈 seatOccupancy ki jagah
-      latestBookings,
+      topCustomers,
+      cinemaProgress: cinemaProgressAgg,
     });
   } catch (error) {
     console.error("Admin Stats Error:", error);
